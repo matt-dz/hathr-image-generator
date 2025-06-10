@@ -1,6 +1,9 @@
 annotated-types==0.7.0
 anyio==4.9.0
+argon2-cffi==25.1.0
+argon2-cffi-bindings==21.2.0
 certifi==2025.4.26
+cffi==1.17.1
 click==8.2.1
 colorhash==2.0.0
 decorator==5.2.1
@@ -19,10 +22,13 @@ Jinja2==3.1.6
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 mdurl==0.1.2
+minio==7.2.15
 moviepy==2.2.1
 numpy==2.3.0
 pillow==11.2.1
 proglog==0.1.12
+pycparser==2.22
+pycryptodome==3.23.0
 pydantic==2.11.5
 pydantic_core==2.33.2
 Pygments==2.19.1
@@ -38,6 +44,7 @@ tqdm==4.67.1
 typer==0.16.0
 typing-inspection==0.4.1
 typing_extensions==4.14.0
+urllib3==2.4.0
 uvicorn==0.34.3
 uvloop==0.21.0
 watchfiles==1.0.5

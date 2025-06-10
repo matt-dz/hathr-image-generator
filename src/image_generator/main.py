@@ -13,6 +13,16 @@ from moviepy import (
         TextClip,
         CompositeVideoClip,
 )
+from minio import Minio
+from minio.error import S3Error
+
+S3_URL = os.getenv("S3_URL", "")
+
+client = Minio(
+    S3_URL,
+    os.getenv("S3_ACCESS_KEY", ""),
+    os.getenv("S3_SECRET_KEY")
+)
 
 logging.basicConfig(level=logging.INFO, format="time=%(asctime)s level=%(levelname)s msg=%(message)s")
 
@@ -34,9 +44,8 @@ class CreateMonthlyPlaylistCover(BaseModel):
     """
     Represents the request body for creating a monthly playlist cover.
     """
-    month: Month 
+    month: Month
     year: int = Field(..., ge=2025, description="Year must be 2000 or later")
-    playlist_id: str
 
 class CreateWeeklyPlaylistCover(BaseModel):
     """
@@ -44,11 +53,12 @@ class CreateWeeklyPlaylistCover(BaseModel):
     """
     week: int = Field(..., ge=1, le=52, description="Week must be between 1 and 52 (inclusive)")
     year: int = Field(..., ge=2025, description="Year must be 2000 or later")
-    playlist_id: str
 
+DEFAULT_IMAGE_DIR = "/tmp"
+PLAYLIST_COVER_BUCKET = "playlist-covers"
 
 API_KEY_NAME = "X-API-Key"
-API_KEY = os.getenv("API_KEY")
+API_KEY = os.getenv("API_KEY", "")
 
 if not API_KEY:
     raise ValueError("API_KEY environment variable is not set")
@@ -71,6 +81,43 @@ def get_api_key(
         )
     return provided_key
 
+def _generate_image(text: str, size: tuple, name: str) -> str:
+    """Generates an image with a colored background and text plaque."""
+    # generate color
+    c = ColorHash(text)
+    bg = ColorClip(size=size, color=c.rgb)
+
+    # text plaque at the bottom right
+    rect_w = int(bg.w * 0.9)
+    rect_h = int(bg.h * 0.15)
+    margin = 20  # distance from edges
+
+    # place it a bit above & left of the bottom-right corner
+    x_pos = bg.w - rect_w
+    y_pos = bg.h - rect_h - margin
+    rect = (
+        ColorClip(size=(rect_w, rect_h), color=(0, 0, 0)).with_position((x_pos, y_pos))
+    )
+
+    # get font path
+    font_path = os.getenv("FONT_PATH")
+    if not font_path:
+        logging.debug("FONT_PATH environment variable is not set, using default font")
+
+    # create text clip
+    txt = (
+        TextClip(text=text, font_size=60, color="white", font=font_path, size=(None, rect_h))
+    )
+    # position it within rectangle
+    txt = txt.with_position((x_pos + 20, y_pos))
+
+    # composite and save one frame
+    dest = os.path.join(os.getenv("IMAGE_DIR", DEFAULT_IMAGE_DIR), name)
+    final = CompositeVideoClip([bg, rect, txt])
+    final.save_frame(dest)
+    return dest
+
+
 
 app = FastAPI()
 
@@ -85,40 +132,21 @@ async def log_request(request: Request, call_next):
 
 @app.post("/playlist/monthly", dependencies=[Depends(get_api_key)])
 async def read_root(playlist: CreateMonthlyPlaylistCover):
-    size = (600, 600)
-    text = f"{playlist.month.value} {playlist.year}"
-    c = ColorHash(text)
-    bg = ColorClip(size=size, color=c.rgb)
-
-    # 2) Black rectangle spanning ~90% width and ~15% height
-    rect_w = int(bg.w * 0.9)
-    rect_h = int(bg.h * 0.15)
-    margin = 20  # distance from edges
-
-    # place it a bit above & left of the bottom-right corner
-    x_pos = bg.w - rect_w
-    y_pos = bg.h - rect_h - margin
-    rect = (
-        ColorClip(size=(rect_w, rect_h), color=(0, 0, 0)).with_position((x_pos, y_pos))
+    logging.info("Generating image")
+    name= f"{playlist.month.value}_{playlist.year}.png"
+    path = _generate_image(
+        text=f"{playlist.month.value} {playlist.year}",
+        size=(600, 600),
+        name=name,
     )
-
-    font_path = os.getenv("FONT_PATH")
-    if not font_path:
-        logging.error("FONT_PATH environment variable is not set")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    logging.info("Uploading image to S3")
+    object_name = f"monthly/{playlist.year}/{playlist.month.value}.png"
+    with open(path, 'rb') as file_data:
+        client.put_object(
+            bucket_name=PLAYLIST_COVER_BUCKET,
+            object_name=object_name,
+            data=file_data,
+            length=os.path.getsize(path),
         )
 
-    # 3) Text centered in that rectangle
-    txt = (
-        TextClip(text=text, font_size=60, color="white", font=font_path, size=(None, rect_h))
-    )
-    # center it by offsetting half the rectangle minus half the text
-    txt = txt.with_position((x_pos + 20, y_pos))
-
-    # 4) Composite and save one frame
-    final = CompositeVideoClip([bg, rect, txt])
-    final.save_frame("june.png")
-
-    return {"url": "image_url" }
-
+    return {"url": f"https://{S3_URL}/{PLAYLIST_COVER_BUCKET}/{object_name}" }
