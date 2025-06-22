@@ -17,11 +17,6 @@ from minio import Minio
 
 S3_URL = os.getenv("S3_URL", "")
 IMAGE_SIZE = (600, 600)
-MONTH_DAY_RE = (
-    r'(?i)^(?:january|february|march|april|may|june|'
-    r'july|august|september|october|november|december)'
-    r'\s(?:[1-9]|[12][0-9]|3[01])$'
-)
 
 client = Minio(
     S3_URL,
@@ -56,9 +51,13 @@ class CreateWeeklyPlaylistCover(BaseModel):
     """
     Represents the request body for creating a monthly playlist cover.
     """
-    date1: str = Field(..., pattern=MONTH_DAY_RE, description="First date in the format 'month day'")
-    date2: str = Field(..., pattern=MONTH_DAY_RE, description="Second date in the format 'month day'")
-    year: int = Field(..., ge=2025, description="Year must be 2000 or later")
+    year1: int = Field(ge=2025, description="Year must be 2025 or later")
+    month1: Month
+    day1: int = Field(ge=1, le=31, description="Day must be between 1 and 31")
+
+    year2: int = Field(ge=2025, description="Year must be 2025 or later")
+    month2: Month
+    day2: int = Field(ge=1, le=31, description="Day must be between 1 and 31")
 
 DEFAULT_IMAGE_DIR = "/tmp"
 PLAYLIST_COVER_BUCKET = "playlist-covers"
@@ -123,21 +122,20 @@ def _generate_monthly_image(text: str, name: str) -> str:
     final.save_frame(dest)
     return dest
 
-def _generate_weekly_image(playlist: CreateWeeklyPlaylistCover) -> str:
+def _generate_weekly_image(date1: str, date2: str) -> str:
     # get font path
     font_path = os.getenv("FONT_PATH")
     if not font_path:
         logging.debug("FONT_PATH environment variable is not set, using default font")
 
     # generate color
-    c = ColorHash(f"{playlist.date1} {playlist.date2}")
+    c = ColorHash(f"{date1} {date2}")
     bg = ColorClip(size=IMAGE_SIZE, color=c.rgb)
 
     # text plaque at the bottom right
     rect_w = int(bg.w * 0.9)
     rect_h = int(bg.h * 0.15)
     margin = 20  # distance from edges
-
 
     # top left rectangle
     x_pos = 0
@@ -148,7 +146,7 @@ def _generate_weekly_image(playlist: CreateWeeklyPlaylistCover) -> str:
 
     # create text clip
     date1txt = (
-        TextClip(text=playlist.date1, font_size=60, color="white", font=font_path, size=(None, rect_h))
+        TextClip(text=date1, font_size=60, color="white", font=font_path, size=(None, rect_h))
     )
     date1txt = date1txt.with_position((x_pos + margin, y_pos))
 
@@ -159,12 +157,12 @@ def _generate_weekly_image(playlist: CreateWeeklyPlaylistCover) -> str:
         ColorClip(size=(rect_w, rect_h), color=(0, 0, 0)).with_position((x_pos, y_pos))
     )
     date2txt = (
-        TextClip(text=playlist.date2, font_size=60, color="white", font=font_path, size=(None, rect_h))
+        TextClip(text=date2, font_size=60, color="white", font=font_path, size=(None, rect_h))
     )
     date2txt = date2txt.with_position((x_pos + margin, y_pos))
 
     # compile image
-    dest = os.path.join(os.getenv("IMAGE_DIR", DEFAULT_IMAGE_DIR), f"{playlist.date1}-{playlist.date2}.png")
+    dest = os.path.join(os.getenv("IMAGE_DIR", DEFAULT_IMAGE_DIR), f"{date1}-{date2}.png")
     final = CompositeVideoClip([bg, rect1, date1txt, rect2, date2txt])
     final.save_frame(dest)
     return dest
@@ -180,7 +178,7 @@ async def log_request(request: Request, call_next):
     logging.info(f"Request '{request.method} {request.url}' processed in {process_time:.4f} seconds")
     return response
 
-@app.post("/playlist/monthly", dependencies=[Depends(get_api_key)])
+@app.post("/monthly-playlist", dependencies=[Depends(get_api_key)])
 async def create_monthly_playlist_cover(playlist: CreateMonthlyPlaylistCover):
     logging.info("Generating image")
     name= f"{playlist.month.value}_{playlist.year}.png"
@@ -200,15 +198,15 @@ async def create_monthly_playlist_cover(playlist: CreateMonthlyPlaylistCover):
 
     return {"url": f"https://{S3_URL}/{PLAYLIST_COVER_BUCKET}/{object_name}" }
 
-@app.post("/playlist/weekly", dependencies=[Depends(get_api_key)])
+@app.post("/weekly-playlist", dependencies=[Depends(get_api_key)])
 async def create_weekly_playlist_cover(playlist: CreateWeeklyPlaylistCover):
     logging.info("Generating image")
-    playlist.date1 = playlist.date1.lower()
-    playlist.date2 = playlist.date2.lower()
-    path = _generate_weekly_image(playlist=playlist)
+    date1 = f"{playlist.month1.value}/{playlist.day1}/{playlist.year1}"
+    date2 = f"{playlist.month2.value}/{playlist.day2}/{playlist.year2}"
+    path = _generate_weekly_image(date1, date2)
 
     logging.info("Uploading image to S3")
-    object_name = f"weekly/{playlist.year}/{playlist.date1}-{playlist.date2}.png".replace(" ", "-")
+    object_name = f"weekly/{playlist.year2}/{date1}-{date2}.png"
     with open(path, 'rb') as file_data:
         client.put_object(
             bucket_name=PLAYLIST_COVER_BUCKET,
