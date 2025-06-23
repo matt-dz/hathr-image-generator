@@ -201,12 +201,12 @@ async def create_monthly_playlist_cover(playlist: CreateMonthlyPlaylistCover):
 @app.post("/weekly-playlist", dependencies=[Depends(get_api_key)])
 async def create_weekly_playlist_cover(playlist: CreateWeeklyPlaylistCover):
     logging.info("Generating image")
-    date1 = f"{playlist.month1.value}/{playlist.day1}/{playlist.year1}"
-    date2 = f"{playlist.month2.value}/{playlist.day2}/{playlist.year2}"
+    date1 = f"{playlist.month1.value}_{playlist.day1}"
+    date2 = f"{playlist.month2.value}_{playlist.day2}"
     path = _generate_weekly_image(date1, date2)
 
     logging.info("Uploading image to S3")
-    object_name = f"weekly/{playlist.year2}/{date1}-{date2}.png"
+    object_name = f"weekly/{playlist.year2}/{playlist.month2}/{date1}-{date2}.png"
     with open(path, 'rb') as file_data:
         client.put_object(
             bucket_name=PLAYLIST_COVER_BUCKET,
