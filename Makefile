@@ -19,3 +19,7 @@ run:
 write-deps:
 	@echo "Updating dependencies..."
 	@source venv/bin/activate && pip freeze > requirements.txt
+
+build:
+	@echo "Building the application..."
+	@docker build -t image-generator .

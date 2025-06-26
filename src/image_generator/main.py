@@ -122,13 +122,14 @@ def _generate_monthly_image(text: str, name: str) -> str:
     final.save_frame(dest)
     return dest
 
-def _generate_weekly_image(date1: str, date2: str) -> str:
+def _generate_weekly_image(month1: str, day1: int, month2: str, day2: int) -> str:
     # get font path
     font_path = os.getenv("FONT_PATH")
     if not font_path:
         logging.debug("FONT_PATH environment variable is not set, using default font")
 
     # generate color
+    date1, date2 = f"{month1} {day1}", f"{month2} {day2}"
     c = ColorHash(f"{date1} {date2}")
     bg = ColorClip(size=IMAGE_SIZE, color=c.rgb)
 
@@ -203,10 +204,10 @@ async def create_weekly_playlist_cover(playlist: CreateWeeklyPlaylistCover):
     logging.info("Generating image")
     date1 = f"{playlist.month1.value}_{playlist.day1}"
     date2 = f"{playlist.month2.value}_{playlist.day2}"
-    path = _generate_weekly_image(date1, date2)
+    path = _generate_weekly_image(playlist.month1.value, playlist.day1, playlist.month2.value, playlist.day2)
 
     logging.info("Uploading image to S3")
-    object_name = f"weekly/{playlist.year2}/{playlist.month2}/{date1}-{date2}.png"
+    object_name = f"weekly/{playlist.year2}/{playlist.month2.value}/{date1}-{date2}.png"
     with open(path, 'rb') as file_data:
         client.put_object(
             bucket_name=PLAYLIST_COVER_BUCKET,

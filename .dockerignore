@@ -1,0 +1,50 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+eggs/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+*.whl
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Testing
+.pytest_cache/
+toj/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# Docker files themselves
+Dockerfile
+docker-compose*.yml
+
+# Git
+.git
+.gitignore
+README.md
+
+# Editor and OS metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.ropeproject

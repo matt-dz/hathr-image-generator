@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-generator
+  namespace: hathr
+  labels:
+    app: image-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: image-generator
+  template:
+    metadata:
+      labels:
+        app: image-generator
+    spec:
+      containers:
+        - name: image-generator
+          image: matthew10125/hathr-image-generator
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: API_KEY
+              value: "${API_KEY}"
+            - name: S3_URL
+              value: "${S3_URL}"
+            - name: S3_ACCESS_KEY
+              value: "${S3_ACCESS_KEY}"
+            - name: S3_SECRET_KEY
+              value: "${S3_SECRET_KEY}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-generator
+  namespace: hathr
+spec:
+  selector:
+    app: image-generator
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
