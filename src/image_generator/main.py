@@ -21,7 +21,8 @@ IMAGE_SIZE = (600, 600)
 client = Minio(
     S3_URL,
     os.getenv("S3_ACCESS_KEY", ""),
-    os.getenv("S3_SECRET_KEY")
+    os.getenv("S3_SECRET_KEY"),
+    secure=False,
 )
 
 logging.basicConfig(level=logging.INFO, format="time=%(asctime)s level=%(levelname)s msg=%(message)s")
