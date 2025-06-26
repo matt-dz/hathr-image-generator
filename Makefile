@@ -1,5 +1,7 @@
 .PHONY: all run
 
+DOCKER_TAG := image-generator
+
 ifneq (,$(wildcard ./.env))
     include .env
     export
@@ -21,5 +23,5 @@ write-deps:
 	@source venv/bin/activate && pip freeze > requirements.txt
 
 build:
-	@echo "Building the application..."
-	@docker build -t image-generator .
+	@echo "Building docker image with tag $(DOCKER_TAG)..."
+	@docker build -t $(DOCKER_TAG) .
